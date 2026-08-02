@@ -39,19 +39,48 @@ interface TransactionDao {
     @Query("SELECT sourceFingerprint FROM deleted_sources")
     suspend fun findDeletedSourceFingerprints(): List<String>
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun rememberDeletedTransaction(transaction: DeletedTransactionEntity): Long
+
+    @Query("SELECT * FROM deleted_transactions ORDER BY deletedAtMillis DESC")
+    suspend fun findDeletedTransactions(): List<DeletedTransactionEntity>
+
+    @Query("DELETE FROM deleted_transactions WHERE sourceFingerprint = :sourceFingerprint")
+    suspend fun forgetDeletedTransaction(sourceFingerprint: String)
+
+    @Query("DELETE FROM deleted_sources WHERE sourceFingerprint = :sourceFingerprint")
+    suspend fun forgetDeletedSource(sourceFingerprint: String)
+
+    @Query("SELECT sourceFingerprint FROM transactions")
+    suspend fun findAllSourceFingerprints(): List<String>
+
     @Delete
     suspend fun delete(transaction: TransactionEntity)
 
     @Transaction
     suspend fun deleteAndRememberSource(transaction: TransactionEntity) {
+        val deletedAtMillis = System.currentTimeMillis()
+        rememberDeletedTransaction(
+            DeletedTransactionEntity.from(
+                transaction = transaction,
+                deletedAtMillis = deletedAtMillis,
+            ),
+        )
         if (transaction.source != "MANUAL") {
             rememberDeletedSource(
                 DeletedSourceEntity(
                     sourceFingerprint = transaction.sourceFingerprint,
-                    deletedAtMillis = System.currentTimeMillis(),
+                    deletedAtMillis = deletedAtMillis,
                 ),
             )
         }
         delete(transaction)
+    }
+
+    @Transaction
+    suspend fun restoreDeletedTransaction(transaction: DeletedTransactionEntity) {
+        insert(transaction.restoreAsTransaction())
+        forgetDeletedTransaction(transaction.sourceFingerprint)
+        forgetDeletedSource(transaction.sourceFingerprint)
     }
 }

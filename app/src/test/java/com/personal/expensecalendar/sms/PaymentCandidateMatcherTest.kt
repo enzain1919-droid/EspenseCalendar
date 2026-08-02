@@ -43,6 +43,15 @@ class PaymentCandidateMatcherTest {
     }
 
     @Test
+    fun `payment clues with an unknown amount format are sent to review`() {
+        assertTrue(
+            PaymentCandidateMatcher.isCandidate(
+                "[새카드] 승인 12,300 KRW 일시불 테스트가맹점",
+            ),
+        )
+    }
+
+    @Test
     fun `korean cancellation completion is a candidate`() {
         assertTrue(PaymentCandidateMatcher.isCandidate("네이버페이 40,600원 취소완료"))
     }

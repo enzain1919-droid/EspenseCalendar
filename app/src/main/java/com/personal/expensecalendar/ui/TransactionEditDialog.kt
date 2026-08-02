@@ -52,6 +52,8 @@ internal fun TransactionEditDialog(
     categories: List<CategoryEntity>,
     onDismiss: () -> Unit,
     onSave: (TransactionEditInput) -> Unit,
+    title: String = "내역 수정",
+    confirmLabel: String = "저장",
 ) {
     val originalDate = remember(transaction.id, transaction.occurredAtMillis) {
         Instant.ofEpochMilli(transaction.occurredAtMillis)
@@ -113,6 +115,9 @@ internal fun TransactionEditDialog(
                 ),
         )
     }
+    var includedInExpense by remember(transaction.id) {
+        mutableStateOf(transaction.includedInExpense)
+    }
     var showDatePicker by remember(transaction.id) { mutableStateOf(false) }
     val amount = amountText.toLongOrNull()
     val isCardExpense = transactionType == TransactionType.EXPENSE &&
@@ -151,7 +156,7 @@ internal fun TransactionEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("내역 수정") },
+        title = { Text(title) },
         text = {
             Column(
                 modifier = Modifier
@@ -285,21 +290,30 @@ internal fun TransactionEditDialog(
                         )
                     }
 
-                    EditSectionLabel("카드 실적")
+                    EditSectionLabel("카드 실적 제외")
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        PerformanceOverride.entries.forEach { option ->
+                        listOf(
+                            PerformanceOverride.INCLUDE,
+                            PerformanceOverride.EXCLUDE,
+                        ).forEach { option ->
                             FilterChip(
-                                selected = performanceOverride == option,
+                                selected = when (option) {
+                                    PerformanceOverride.INCLUDE ->
+                                        performanceOverride != PerformanceOverride.EXCLUDE
+                                    PerformanceOverride.EXCLUDE ->
+                                        performanceOverride == PerformanceOverride.EXCLUDE
+                                    PerformanceOverride.AUTO -> false
+                                },
                                 onClick = { performanceOverride = option },
                                 label = {
                                     Text(
                                         when (option) {
-                                            PerformanceOverride.AUTO -> "자동"
                                             PerformanceOverride.INCLUDE -> "포함"
                                             PerformanceOverride.EXCLUDE -> "제외"
+                                            PerformanceOverride.AUTO -> "포함"
                                         },
                                     )
                                 },
@@ -308,9 +322,38 @@ internal fun TransactionEditDialog(
                     }
                     Text(
                         text = when (performanceOverride) {
-                            PerformanceOverride.AUTO -> "카드에 등록한 실적 제외 문장을 자동으로 적용합니다."
+                            PerformanceOverride.AUTO ->
+                                "기본은 포함이며, 카드에 등록한 제외 문장과 일치하면 자동 제외됩니다."
                             PerformanceOverride.INCLUDE -> "제외 문장과 일치해도 이 거래는 실적에 포함합니다."
                             PerformanceOverride.EXCLUDE -> "이 거래는 카드 실적에서 제외합니다."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                if (transactionType == TransactionType.EXPENSE) {
+                    EditSectionLabel("지출 제외")
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        FilterChip(
+                            selected = includedInExpense,
+                            onClick = { includedInExpense = true },
+                            label = { Text("포함") },
+                        )
+                        FilterChip(
+                            selected = !includedInExpense,
+                            onClick = { includedInExpense = false },
+                            label = { Text("제외") },
+                        )
+                    }
+                    Text(
+                        text = if (includedInExpense) {
+                            "월 지출 합계, 남은 예산과 분류 그래프에 포함합니다."
+                        } else {
+                            "내역은 보관하지만 모든 지출 계산에서는 제외합니다."
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -341,6 +384,7 @@ internal fun TransactionEditDialog(
                                 categoryName = categoryName,
                                 status = status,
                                 performanceOverride = performanceOverride,
+                                includedInExpense = includedInExpense,
                             ),
                         )
                     }
@@ -348,7 +392,7 @@ internal fun TransactionEditDialog(
                 enabled = merchant.isNotBlank() && amount != null && amount > 0L &&
                     categoryName.isNotBlank() &&
                     (paymentMethod == PaymentMethod.CASH || selectedCardName != null),
-            ) { Text("저장") }
+            ) { Text(confirmLabel) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
     )

@@ -33,6 +33,7 @@ class TransactionEditorTest {
                 categoryName = "쇼핑",
                 status = PaymentStatus.CANCELED,
                 performanceOverride = PerformanceOverride.EXCLUDE,
+                includedInExpense = false,
             ),
             zoneId = zoneId,
         )
@@ -49,6 +50,7 @@ class TransactionEditorTest {
         assertEquals(MajorCategory.JINYOUNG_ALLOWANCE.name, edited.majorCategory)
         assertEquals(PaymentStatus.CANCELED.name, edited.status)
         assertEquals(PerformanceOverride.EXCLUDE.name, edited.performanceOverride)
+        assertEquals(false, edited.includedInExpense)
     }
 
     @Test
@@ -67,6 +69,7 @@ class TransactionEditorTest {
                 categoryName = "기타",
                 status = PaymentStatus.CANCELED,
                 performanceOverride = PerformanceOverride.INCLUDE,
+                includedInExpense = false,
             ),
             zoneId = zoneId,
         )
@@ -75,6 +78,7 @@ class TransactionEditorTest {
         assertEquals(PaymentStatus.APPROVED.name, edited.status)
         assertEquals(PerformanceOverride.AUTO.name, edited.performanceOverride)
         assertEquals(true, edited.includedInPerformance)
+        assertEquals(true, edited.includedInExpense)
     }
 
     private fun transactionAt(dateTime: LocalDateTime) = TransactionEntity(

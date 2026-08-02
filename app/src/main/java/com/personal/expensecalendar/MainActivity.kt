@@ -30,7 +30,9 @@ import com.personal.expensecalendar.ui.CardManagementScreen
 import com.personal.expensecalendar.ui.CardPerformanceDetailScreen
 import com.personal.expensecalendar.ui.CategoryManagementScreen
 import com.personal.expensecalendar.ui.DashboardScreen
+import com.personal.expensecalendar.ui.DeletedTransactionsScreen
 import com.personal.expensecalendar.ui.ExpenseCalendarTheme
+import com.personal.expensecalendar.ui.MessageReviewScreen
 import java.time.YearMonth
 import kotlinx.coroutines.launch
 
@@ -132,6 +134,7 @@ private fun ExpenseCalendarApp() {
     var screen by rememberSaveable { mutableStateOf(AppScreen.DASHBOARD) }
     var selectedCardName by rememberSaveable { mutableStateOf("") }
     var selectedCardMonth by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
+    var selectedReviewMonth by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
 
     AnimatedContent(
                     targetState = screen,
@@ -172,6 +175,13 @@ private fun ExpenseCalendarApp() {
                                 selectedCardMonth = yearMonth.toString()
                                 screen = AppScreen.CARD_PERFORMANCE
                             },
+                            onOpenMessageReview = { yearMonth ->
+                                selectedReviewMonth = yearMonth.toString()
+                                screen = AppScreen.MESSAGE_REVIEW
+                            },
+                            onOpenDeletedTransactions = {
+                                screen = AppScreen.DELETED_TRANSACTIONS
+                            },
                         )
                         AppScreen.CARDS -> CardManagementScreen(
                             onBack = { screen = AppScreen.DASHBOARD },
@@ -182,6 +192,13 @@ private fun ExpenseCalendarApp() {
                         AppScreen.CARD_PERFORMANCE -> CardPerformanceDetailScreen(
                             cardName = selectedCardName,
                             yearMonth = YearMonth.parse(selectedCardMonth),
+                            onBack = { screen = AppScreen.DASHBOARD },
+                        )
+                        AppScreen.MESSAGE_REVIEW -> MessageReviewScreen(
+                            yearMonth = YearMonth.parse(selectedReviewMonth),
+                            onBack = { screen = AppScreen.DASHBOARD },
+                        )
+                        AppScreen.DELETED_TRANSACTIONS -> DeletedTransactionsScreen(
                             onBack = { screen = AppScreen.DASHBOARD },
                         )
         }
@@ -200,6 +217,8 @@ private enum class AppScreen {
     CARDS,
     CATEGORIES,
     CARD_PERFORMANCE,
+    MESSAGE_REVIEW,
+    DELETED_TRANSACTIONS,
     ;
 
     val depth: Int

@@ -91,12 +91,47 @@ class ExpenseAggregationTest {
         assertEquals(listOf(2, 1, 0), summaries.map { it.transactionCount })
     }
 
+    @Test
+    fun `expense exclusion keeps the transaction but removes it from every spending total`() {
+        val transactions = listOf(
+            transaction(
+                amount = 50_000,
+                status = PaymentStatus.APPROVED,
+                category = "외식비",
+            ),
+            transaction(
+                amount = 80_000,
+                status = PaymentStatus.APPROVED,
+                category = "교통비",
+                majorCategory = MajorCategory.FIXED_EXPENSE,
+                includedInExpense = false,
+            ),
+            transaction(
+                amount = 20_000,
+                status = PaymentStatus.CANCELED,
+                category = "보험비",
+                includedInExpense = false,
+            ),
+        )
+
+        assertEquals(50_000L, ExpenseAggregation.monthlyTotal(transactions))
+        val daily = ExpenseAggregation.byDay(transactions, ZoneId.of("Asia/Seoul")).values.single()
+        assertEquals(50_000L, daily.netAmountWon)
+        assertEquals(3, daily.transactionCount)
+        assertEquals(listOf("외식비"), ExpenseAggregation.byCategory(transactions).map { it.categoryName })
+        assertEquals(
+            listOf(50_000L, 0L, 0L),
+            ExpenseAggregation.byMajorCategory(transactions).map { it.netAmountWon },
+        )
+    }
+
     private fun transaction(
         amount: Long,
         status: PaymentStatus,
         type: TransactionType = TransactionType.EXPENSE,
         category: String = "기타",
         majorCategory: MajorCategory = MajorCategory.LIVING_EXPENSE,
+        includedInExpense: Boolean = true,
     ) = TransactionEntity(
         sourceSmsId = amount,
         sourceFingerprint = "test-$amount-$status",
@@ -107,6 +142,7 @@ class ExpenseAggregationTest {
         categoryName = category,
         majorCategory = majorCategory.name,
         transactionType = type.name,
+        includedInExpense = includedInExpense,
         occurredAtMillis = Instant.parse("2026-08-02T03:00:00Z").toEpochMilli(),
         importedAtMillis = 0,
     )

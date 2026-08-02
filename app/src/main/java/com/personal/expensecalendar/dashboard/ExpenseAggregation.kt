@@ -46,14 +46,16 @@ object ExpenseAggregation {
         }
 
     fun monthlyTotal(transactions: List<TransactionEntity>): Long =
-        transactions.sumOf(::signedAmount)
+        transactions.filter(TransactionEntity::includedInExpense).sumOf(::signedAmount)
 
     fun monthlyIncome(transactions: List<TransactionEntity>): Long =
         transactions.sumOf(::incomeAmount)
 
     fun byCategory(transactions: List<TransactionEntity>): List<CategoryExpenseSummary> =
         transactions
-            .filter { it.transactionType != TransactionType.INCOME.name }
+            .filter {
+                it.includedInExpense && it.transactionType != TransactionType.INCOME.name
+            }
             .groupBy(TransactionEntity::categoryName)
             .map { (categoryName, items) ->
                 CategoryExpenseSummary(
@@ -73,7 +75,7 @@ object ExpenseAggregation {
         transactions: List<TransactionEntity>,
     ): List<MajorCategoryExpenseSummary> {
         val expenses = transactions.filter {
-            it.transactionType != TransactionType.INCOME.name
+            it.includedInExpense && it.transactionType != TransactionType.INCOME.name
         }
         return MajorCategory.entries.map { majorCategory ->
             val items = expenses.filter {
@@ -99,7 +101,8 @@ object ExpenseAggregation {
         .mapValues { (date, items) ->
             DailyExpenseSummary(
                 date = date,
-                netAmountWon = items.sumOf(::signedAmount),
+                netAmountWon = items.filter(TransactionEntity::includedInExpense)
+                    .sumOf(::signedAmount),
                 incomeAmountWon = items.sumOf(::incomeAmount),
                 transactionCount = items.size,
                 representativeCategory = items

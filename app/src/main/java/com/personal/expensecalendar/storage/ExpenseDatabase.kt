@@ -18,8 +18,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         DeletedSourceEntity::class,
         CardPerformanceTierEntity::class,
         CardPerformanceExclusionEntity::class,
+        DeletedTransactionEntity::class,
     ],
-    version = 12,
+    version = 14,
     exportSchema = false,
 )
 abstract class ExpenseDatabase : RoomDatabase() {
@@ -29,7 +30,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
 
     companion object {
-        const val SCHEMA_VERSION = 12
+        const val SCHEMA_VERSION = 14
 
         val BACKUP_TABLES = arrayOf(
             "transactions",
@@ -39,6 +40,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
             "categories",
             "classification_rules",
             "deleted_sources",
+            "deleted_transactions",
             "card_performance_tiers",
             "card_performance_exclusions",
         )
@@ -62,6 +64,8 @@ abstract class ExpenseDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_9_10)
                 .addMigrations(MIGRATION_10_11)
                 .addMigrations(MIGRATION_11_12)
+                .addMigrations(MIGRATION_12_13)
+                .addMigrations(MIGRATION_13_14)
                 .addCallback(SEED_DEFAULT_CARDS_CALLBACK)
                 .build()
                 .also { instance = it }
@@ -222,6 +226,50 @@ abstract class ExpenseDatabase : RoomDatabase() {
                         "(cardProfileId, phrase, normalizedPhrase, isActive) " +
                         "SELECT id, '[롯데카드]', '[롯데카드]', 1 FROM card_profiles " +
                         "WHERE normalizedName = '롯데카드' LIMIT 1",
+                )
+            }
+        }
+
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE transactions " +
+                        "ADD COLUMN includedInExpense INTEGER NOT NULL DEFAULT 1",
+                )
+            }
+        }
+
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS deleted_transactions (" +
+                        "sourceFingerprint TEXT NOT NULL, " +
+                        "sourceSmsId INTEGER NOT NULL, " +
+                        "cardName TEXT NOT NULL, " +
+                        "merchant TEXT NOT NULL, " +
+                        "amountWon INTEGER NOT NULL, " +
+                        "status TEXT NOT NULL, " +
+                        "occurredAtMillis INTEGER NOT NULL, " +
+                        "categoryName TEXT NOT NULL, " +
+                        "majorCategory TEXT NOT NULL, " +
+                        "includedInPerformance INTEGER NOT NULL, " +
+                        "performanceOverride TEXT NOT NULL, " +
+                        "includedInExpense INTEGER NOT NULL, " +
+                        "source TEXT NOT NULL, " +
+                        "memo TEXT NOT NULL, " +
+                        "transactionType TEXT NOT NULL, " +
+                        "paymentMethod TEXT NOT NULL, " +
+                        "importedAtMillis INTEGER NOT NULL, " +
+                        "deletedAtMillis INTEGER NOT NULL, " +
+                        "PRIMARY KEY(sourceFingerprint))",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_deleted_transactions_deletedAtMillis " +
+                        "ON deleted_transactions(deletedAtMillis)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_deleted_transactions_occurredAtMillis " +
+                        "ON deleted_transactions(occurredAtMillis)",
                 )
             }
         }

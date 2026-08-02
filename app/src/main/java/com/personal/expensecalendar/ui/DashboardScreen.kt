@@ -111,6 +111,8 @@ fun DashboardScreen(
     onOpenCardManagement: () -> Unit = {},
     onOpenCategoryManagement: () -> Unit = {},
     onOpenCardPerformance: (String, YearMonth) -> Unit = { _, _ -> },
+    onOpenMessageReview: (YearMonth) -> Unit = {},
+    onOpenDeletedTransactions: () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -285,6 +287,8 @@ fun DashboardScreen(
                     permissionDenied = permissionDenied,
                     onOpenCardManagement = onOpenCardManagement,
                     onOpenCategoryManagement = onOpenCategoryManagement,
+                    onOpenMessageReview = { onOpenMessageReview(state.displayedMonth) },
+                    onOpenDeletedTransactions = onOpenDeletedTransactions,
                 )
             }
             item {
@@ -966,6 +970,8 @@ private fun ImportStatusAndManagement(
     permissionDenied: Boolean,
     onOpenCardManagement: () -> Unit,
     onOpenCategoryManagement: () -> Unit,
+    onOpenMessageReview: () -> Unit,
+    onOpenDeletedTransactions: () -> Unit,
 ) {
     Column(
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
@@ -989,6 +995,20 @@ private fun ImportStatusAndManagement(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
         ) {
+            val reviewCount = state.lastImportResult?.unparsedCount ?: 0
+            TextButton(onClick = onOpenMessageReview) {
+                Text(
+                    text = if (reviewCount > 0) "문자 검토함 $reviewCount" else "문자 검토함",
+                    color = if (reviewCount > 0) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                )
+            }
+            TextButton(onClick = onOpenDeletedTransactions) {
+                Text("삭제 내역")
+            }
             TextButton(onClick = onOpenCategoryManagement) {
                 Text("카테고리 관리")
             }
@@ -1006,7 +1026,8 @@ private fun ImportStatusAndManagement(
         state.lastImportResult?.let { result ->
             Text(
                 text = "문자 자동 업데이트 완료 · 새 내역 ${result.importedCount}건 · " +
-                    "이미 반영 ${result.duplicateCount}건",
+                    "이미 반영 ${result.duplicateCount}건" +
+                    if (result.unparsedCount > 0) " · 검토 필요 ${result.unparsedCount}건" else "",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1292,6 +1313,13 @@ private fun TransactionRow(
                 text = "승인 취소",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.error,
+            )
+        }
+        if (!isIncome && !transaction.includedInExpense) {
+            Text(
+                text = "지출 제외",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.tertiary,
             )
         }
         HorizontalDivider(modifier = Modifier.padding(top = 6.dp))

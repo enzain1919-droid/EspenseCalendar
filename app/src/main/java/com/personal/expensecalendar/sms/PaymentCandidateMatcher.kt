@@ -1,7 +1,6 @@
 package com.personal.expensecalendar.sms
 
 object PaymentCandidateMatcher {
-    private val amountPattern = Regex("[0-9][0-9,]*\\s*원")
     private val nonTransactionPhrases = listOf(
         "혜택금액:",
         "결제대금",
@@ -18,10 +17,19 @@ object PaymentCandidateMatcher {
         "결제",
         "일시불",
     )
+    private val transactionHints = listOf(
+        "원",
+        "일시불",
+        "할부",
+        "누적",
+        "카드",
+        "로카",
+        "자동납부",
+    )
 
     fun isCandidate(body: String): Boolean =
-        amountPattern.containsMatchIn(body) &&
-            defaultKeywords.any(body::contains) &&
+        defaultKeywords.any(body::contains) &&
+            transactionHints.any(body::contains) &&
             nonTransactionPhrases.none(body::contains)
 }
 

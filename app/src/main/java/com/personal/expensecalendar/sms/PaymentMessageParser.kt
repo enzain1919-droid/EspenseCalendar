@@ -19,6 +19,20 @@ data class ParsedPayment(
     val occurredAtMillis: Long,
 )
 
+data class PaymentReviewDraft(
+    val cardName: String?,
+    val merchant: String,
+    val amountWon: Long?,
+    val status: PaymentStatus,
+    val occurredAtMillis: Long,
+) {
+    val missingReasons: List<String>
+        get() = buildList {
+            if (cardName == null) add("카드 미식별")
+            if (amountWon == null) add("금액 미식별")
+        }
+}
+
 class PaymentMessageParser(
     private val zoneId: ZoneId = ZoneId.systemDefault(),
 ) {
@@ -34,18 +48,32 @@ class PaymentMessageParser(
         record: SmsRecord,
         detectionPatterns: List<CardDetectionPattern> = CardDetector.defaultPatterns,
     ): ParsedPayment? {
-        val cardName = CardDetector.detect(record.body, detectionPatterns)
-        if (cardName == CardDetector.UNKNOWN_CARD) return null
+        val draft = createReviewDraft(record, detectionPatterns)
+        val cardName = draft.cardName ?: return null
+        val amount = draft.amountWon ?: return null
 
+        return ParsedPayment(
+            cardName = cardName,
+            merchant = draft.merchant,
+            amountWon = amount,
+            status = draft.status,
+            occurredAtMillis = draft.occurredAtMillis,
+        )
+    }
+
+    fun createReviewDraft(
+        record: SmsRecord,
+        detectionPatterns: List<CardDetectionPattern> = CardDetector.defaultPatterns,
+    ): PaymentReviewDraft {
+        val detectedCard = CardDetector.detect(record.body, detectionPatterns)
+            .takeUnless { it == CardDetector.UNKNOWN_CARD }
         val amount = amountPattern.find(record.body)
             ?.groupValues
             ?.get(1)
             ?.replace(",", "")
             ?.toLongOrNull()
-            ?: return null
-
-        return ParsedPayment(
-            cardName = cardName,
+        return PaymentReviewDraft(
+            cardName = detectedCard,
             merchant = findMerchant(record.body),
             amountWon = amount,
             status = if (

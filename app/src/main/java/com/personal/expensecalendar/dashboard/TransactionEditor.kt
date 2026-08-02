@@ -22,6 +22,7 @@ data class TransactionEditInput(
     val categoryName: String,
     val status: PaymentStatus,
     val performanceOverride: PerformanceOverride,
+    val includedInExpense: Boolean = true,
 )
 
 object TransactionEditor {
@@ -69,6 +70,11 @@ object TransactionEditor {
             status = if (isCardExpense) input.status.name else PaymentStatus.APPROVED.name,
             includedInPerformance = effectiveOverride != PerformanceOverride.EXCLUDE,
             performanceOverride = effectiveOverride.name,
+            includedInExpense = if (input.transactionType == TransactionType.EXPENSE) {
+                input.includedInExpense
+            } else {
+                true
+            },
         )
     }
 }

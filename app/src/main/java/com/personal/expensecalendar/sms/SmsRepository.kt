@@ -57,6 +57,40 @@ data class SmsImportResult(
     val payments: List<PaymentPreview>,
 )
 
+data class UnparsedPaymentMessage(
+    val record: SmsRecord,
+    val sourceFingerprint: String,
+    val draft: PaymentReviewDraft,
+)
+
+data class MessageReviewScanResult(
+    val range: MonthRange,
+    val scannedCount: Int,
+    val candidateCount: Int,
+    val messages: List<UnparsedPaymentMessage>,
+)
+
+internal object MessageReviewCandidateSelector {
+    fun select(
+        candidates: List<SmsRecord>,
+        detectionPatterns: List<CardDetectionPattern>,
+        deletedFingerprints: Set<String>,
+        existingFingerprints: Set<String>,
+        parser: PaymentMessageParser = PaymentMessageParser(),
+    ): List<UnparsedPaymentMessage> = candidates.mapNotNull { record ->
+        val fingerprint = MessageFingerprint.create(record)
+        if (fingerprint in deletedFingerprints || fingerprint in existingFingerprints) {
+            return@mapNotNull null
+        }
+        if (parser.parse(record, detectionPatterns) != null) return@mapNotNull null
+        UnparsedPaymentMessage(
+            record = record,
+            sourceFingerprint = fingerprint,
+            draft = parser.createReviewDraft(record, detectionPatterns),
+        )
+    }
+}
+
 class SmsRepository(
     private val contentResolver: ContentResolver,
 ) {
@@ -220,18 +254,21 @@ class SmsImportRepository(
 ) {
     suspend fun importCurrentMonth(range: MonthRange): SmsImportResult {
         val scan = smsRepository.scanInbox(range)
-        val detectionPatterns = cardProfileDao.findActiveDetectionRules().map { rule ->
-            CardDetectionPattern(
-                cardName = rule.cardName,
-                phrase = rule.phrase,
+        val detectionPatterns = activeDetectionPatterns()
+        val analyzedCandidates = scan.candidates.map { record ->
+            AnalyzedCandidate(
+                record = record,
+                payment = parser.parse(record, detectionPatterns),
+                fingerprint = MessageFingerprint.create(record),
             )
         }
-        val parsedCandidates = scan.candidates.mapNotNull { record ->
-            parser.parse(record, detectionPatterns)?.let { payment ->
-                Triple(record, payment, MessageFingerprint.create(record))
+        val parsedCandidates = analyzedCandidates.mapNotNull { candidate ->
+            candidate.payment?.let { payment ->
+                Triple(candidate.record, payment, candidate.fingerprint)
             }
         }
         val deletedFingerprints = transactionDao.findDeletedSourceFingerprints().toHashSet()
+        val existingFingerprints = transactionDao.findAllSourceFingerprints().toHashSet()
         val parsed = parsedCandidates.filterNot { (_, _, fingerprint) ->
             fingerprint in deletedFingerprints
         }
@@ -267,7 +304,11 @@ class SmsImportRepository(
             candidateCount = scan.candidates.size,
             importedCount = importedCount,
             duplicateCount = parsed.size - importedCount,
-            unparsedCount = scan.candidates.size - parsedCandidates.size,
+            unparsedCount = analyzedCandidates.count { candidate ->
+                candidate.payment == null &&
+                    candidate.fingerprint !in deletedFingerprints &&
+                    candidate.fingerprint !in existingFingerprints
+            },
             deletedCount = parsedCandidates.size - parsed.size,
             totalSavedCount = transactionDao.countAll(),
             payments = parsed.map { (_, payment, fingerprint) ->
@@ -282,4 +323,38 @@ class SmsImportRepository(
             },
         )
     }
+
+    suspend fun findUnparsedMessages(range: MonthRange): MessageReviewScanResult {
+        val scan = smsRepository.scanInbox(range)
+        val detectionPatterns = activeDetectionPatterns()
+        val deletedFingerprints = transactionDao.findDeletedSourceFingerprints().toHashSet()
+        val existingFingerprints = transactionDao.findAllSourceFingerprints().toHashSet()
+        val messages = MessageReviewCandidateSelector.select(
+            candidates = scan.candidates,
+            detectionPatterns = detectionPatterns,
+            deletedFingerprints = deletedFingerprints,
+            existingFingerprints = existingFingerprints,
+            parser = parser,
+        )
+        return MessageReviewScanResult(
+            range = range,
+            scannedCount = scan.scannedCount,
+            candidateCount = scan.candidates.size,
+            messages = messages,
+        )
+    }
+
+    private suspend fun activeDetectionPatterns(): List<CardDetectionPattern> =
+        cardProfileDao.findActiveDetectionRules().map { rule ->
+            CardDetectionPattern(
+                cardName = rule.cardName,
+                phrase = rule.phrase,
+            )
+        }
 }
+
+private data class AnalyzedCandidate(
+    val record: SmsRecord,
+    val payment: ParsedPayment?,
+    val fingerprint: String,
+)

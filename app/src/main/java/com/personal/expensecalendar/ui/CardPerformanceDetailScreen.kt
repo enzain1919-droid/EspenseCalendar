@@ -337,6 +337,13 @@ private fun PerformanceTransactionRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (!transaction.includedInExpense) {
+                Text(
+                    text = "월 지출 합계와 예산 계산에서 제외됨",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
         }
     }
 }

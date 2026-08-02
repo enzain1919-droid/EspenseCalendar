@@ -3,6 +3,8 @@ package com.personal.expensecalendar.sms
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import java.time.ZoneId
@@ -189,6 +191,35 @@ class PaymentMessageParserTest {
     fun `ignores payment message from unregistered card`() {
         val result = parser.parse(record("다른 카드 승인 12,000원"))
         assertEquals(null, result)
+    }
+
+    @Test
+    fun `creates review draft when card is not registered`() {
+        val draft = parser.createReviewDraft(
+            record(
+                """
+                    새로운카드 승인
+                    12,300원 일시불
+                    08/01 19:25
+                    테스트가맹점
+                """.trimIndent(),
+            ),
+        )
+
+        assertNull(draft.cardName)
+        assertEquals(12_300L, draft.amountWon)
+        assertEquals("테스트가맹점", draft.merchant)
+        assertEquals(Instant.parse("2026-08-01T10:25:00Z").toEpochMilli(), draft.occurredAtMillis)
+        assertTrue("카드 미식별" in draft.missingReasons)
+    }
+
+    @Test
+    fun `review draft identifies missing amount`() {
+        val draft = parser.createReviewDraft(record("롯데카드 로카 X 세라젬 승인 금액 확인 필요"))
+
+        assertEquals(CardDetector.LOTTE_CARD, draft.cardName)
+        assertNull(draft.amountWon)
+        assertTrue("금액 미식별" in draft.missingReasons)
     }
 
     @Test

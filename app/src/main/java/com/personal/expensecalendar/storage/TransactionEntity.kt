@@ -29,6 +29,8 @@ data class TransactionEntity(
     val includedInPerformance: Boolean = true,
     @ColumnInfo(defaultValue = "'AUTO'")
     val performanceOverride: String = PerformanceOverride.AUTO.name,
+    @ColumnInfo(defaultValue = "1")
+    val includedInExpense: Boolean = true,
     @ColumnInfo(defaultValue = "'SMS'")
     val source: String = "SMS",
     @ColumnInfo(defaultValue = "''")
