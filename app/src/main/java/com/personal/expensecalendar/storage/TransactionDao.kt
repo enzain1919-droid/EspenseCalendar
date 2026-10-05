@@ -23,6 +23,7 @@ interface TransactionDao {
         "SELECT * FROM transactions " +
             "WHERE occurredAtMillis >= :startInclusiveMillis " +
             "AND occurredAtMillis < :endExclusiveMillis " +
+            "AND sourceFingerprint NOT IN (SELECT sourceFingerprint FROM advertisement_sources) " +
             "ORDER BY occurredAtMillis DESC",
     )
     suspend fun findBetween(
@@ -30,8 +31,14 @@ interface TransactionDao {
         endExclusiveMillis: Long,
     ): List<TransactionEntity>
 
-    @Query("SELECT COUNT(*) FROM transactions")
+    @Query(
+        "SELECT COUNT(*) FROM transactions WHERE sourceFingerprint NOT IN " +
+            "(SELECT sourceFingerprint FROM advertisement_sources)",
+    )
     suspend fun countAll(): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun rememberAdvertisementSources(sources: List<AdvertisementSourceEntity>)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun rememberDeletedSource(deletedSource: DeletedSourceEntity): Long
@@ -42,7 +49,10 @@ interface TransactionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun rememberDeletedTransaction(transaction: DeletedTransactionEntity): Long
 
-    @Query("SELECT * FROM deleted_transactions ORDER BY deletedAtMillis DESC")
+    @Query(
+        "SELECT * FROM deleted_transactions WHERE sourceFingerprint NOT IN " +
+            "(SELECT sourceFingerprint FROM advertisement_sources) ORDER BY deletedAtMillis DESC",
+    )
     suspend fun findDeletedTransactions(): List<DeletedTransactionEntity>
 
     @Query("DELETE FROM deleted_transactions WHERE sourceFingerprint = :sourceFingerprint")

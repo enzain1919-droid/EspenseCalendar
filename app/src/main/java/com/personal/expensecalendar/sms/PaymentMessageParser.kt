@@ -48,6 +48,7 @@ class PaymentMessageParser(
         record: SmsRecord,
         detectionPatterns: List<CardDetectionPattern> = CardDetector.defaultPatterns,
     ): ParsedPayment? {
+        if (PaymentCandidateMatcher.isAdvertisement(record.body)) return null
         val draft = createReviewDraft(record, detectionPatterns)
         val cardName = draft.cardName ?: return null
         val amount = draft.amountWon ?: return null

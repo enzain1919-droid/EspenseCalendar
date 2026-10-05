@@ -85,6 +85,27 @@ class PaymentCandidateMatcherTest {
     }
 
     @Test
+    fun `advertising markers anywhere in a payment shaped message are excluded`() {
+        val paymentBody = "[롯데카드] 네이버페이 25,000원 승인 일시불"
+        listOf(
+            "(광고)$paymentBody",
+            "[광고] $paymentBody",
+            "$paymentBody\n광고 수신거부 080-000-0000",
+            "$paymentBody 광고 안내",
+        ).forEach { body ->
+            assertTrue(PaymentCandidateMatcher.isAdvertisement(body))
+            assertFalse(PaymentCandidateMatcher.isCandidate(body))
+        }
+    }
+
+    @Test
+    fun `literal advertising text is excluded even without brackets`() {
+        assertFalse(PaymentCandidateMatcher.isCandidate("광고기획 8,000원 승인 로카 X 세라젬"))
+        assertTrue(PaymentCandidateMatcher.isAdvertisement("이번 달 광고 안내"))
+        assertFalse(PaymentCandidateMatcher.isAdvertisement("[롯데카드] 네이버페이 8,000원 승인"))
+    }
+
+    @Test
     fun `custom detection phrase resolves user card`() {
         val patterns = listOf(
             CardDetectionPattern(cardName = "새 카드", phrase = "MY CARD 1234"),

@@ -27,8 +27,11 @@ object PaymentCandidateMatcher {
         "자동납부",
     )
 
+    fun isAdvertisement(body: String): Boolean = body.contains("광고")
+
     fun isCandidate(body: String): Boolean =
-        defaultKeywords.any(body::contains) &&
+        !isAdvertisement(body) &&
+            defaultKeywords.any(body::contains) &&
             transactionHints.any(body::contains) &&
             nonTransactionPhrases.none(body::contains)
 }

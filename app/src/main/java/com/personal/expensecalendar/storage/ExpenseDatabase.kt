@@ -19,8 +19,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CardPerformanceTierEntity::class,
         CardPerformanceExclusionEntity::class,
         DeletedTransactionEntity::class,
+        AdvertisementSourceEntity::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = false,
 )
 abstract class ExpenseDatabase : RoomDatabase() {
@@ -30,7 +31,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
 
     companion object {
-        const val SCHEMA_VERSION = 14
+        const val SCHEMA_VERSION = 15
 
         val BACKUP_TABLES = arrayOf(
             "transactions",
@@ -41,6 +42,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
             "classification_rules",
             "deleted_sources",
             "deleted_transactions",
+            "advertisement_sources",
             "card_performance_tiers",
             "card_performance_exclusions",
         )
@@ -66,6 +68,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_11_12)
                 .addMigrations(MIGRATION_12_13)
                 .addMigrations(MIGRATION_13_14)
+                .addMigrations(MIGRATION_14_15)
                 .addCallback(SEED_DEFAULT_CARDS_CALLBACK)
                 .build()
                 .also { instance = it }
@@ -270,6 +273,24 @@ abstract class ExpenseDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_deleted_transactions_occurredAtMillis " +
                         "ON deleted_transactions(occurredAtMillis)",
+                )
+            }
+        }
+
+        internal val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS advertisement_sources (" +
+                        "sourceFingerprint TEXT NOT NULL, PRIMARY KEY(sourceFingerprint))",
+                )
+                // Older imports did not retain message bodies. Seed identifiable saved ads;
+                // rescanning each month's inbox identifies ads whose marker was elsewhere.
+                db.execSQL(
+                    "INSERT OR IGNORE INTO advertisement_sources (sourceFingerprint) " +
+                        "SELECT sourceFingerprint FROM transactions " +
+                        "WHERE source IN ('SMS', 'MMS') AND instr(merchant, '광고') > 0 " +
+                        "UNION SELECT sourceFingerprint FROM deleted_transactions " +
+                        "WHERE source IN ('SMS', 'MMS') AND instr(merchant, '광고') > 0",
                 )
             }
         }

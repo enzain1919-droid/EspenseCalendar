@@ -68,8 +68,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -123,6 +125,9 @@ fun DashboardScreen(
     var editTarget by remember { mutableStateOf<TransactionEntity?>(null) }
     var classificationTarget by remember { mutableStateOf<TransactionEntity?>(null) }
     var deleteTarget by remember { mutableStateOf<TransactionEntity?>(null) }
+    var expenseGroupSelection by remember(state.displayedMonth) {
+        mutableStateOf<ExpenseGroupSelection?>(null)
+    }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -174,6 +179,14 @@ fun DashboardScreen(
                 )
                 showManualDialog = false
             },
+        )
+    }
+    expenseGroupSelection?.let { selection ->
+        ExpenseGroupTransactionsDialog(
+            selection = selection,
+            yearMonth = state.displayedMonth,
+            transactions = state.monthTransactions,
+            onDismiss = { expenseGroupSelection = null },
         )
     }
     editTarget?.let { transaction ->
@@ -326,17 +339,30 @@ fun DashboardScreen(
                 }
             }
             item {
-                MonthlyCategoryChart(transactions = state.monthTransactions)
+                MonthlyCategoryChart(
+                    transactions = state.monthTransactions,
+                    onCategorySelected = { categoryName ->
+                        expenseGroupSelection = ExpenseGroupSelection.Category(categoryName)
+                    },
+                )
             }
             item {
-                MonthlyMajorCategoryChart(transactions = state.monthTransactions)
+                MonthlyMajorCategoryChart(
+                    transactions = state.monthTransactions,
+                    onCategorySelected = { majorCategory ->
+                        expenseGroupSelection = ExpenseGroupSelection.Major(majorCategory)
+                    },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun MonthlyCategoryChart(transactions: List<TransactionEntity>) {
+private fun MonthlyCategoryChart(
+    transactions: List<TransactionEntity>,
+    onCategorySelected: (String) -> Unit,
+) {
     val summaries = remember(transactions) { ExpenseAggregation.byCategory(transactions) }
     val maximumAbsoluteWon = remember(summaries) {
         summaries.maxOfOrNull { abs(it.netAmountWon) }?.coerceAtLeast(1L) ?: 1L
@@ -362,7 +388,7 @@ private fun MonthlyCategoryChart(transactions: List<TransactionEntity>) {
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "승인 취소 반영 · 입금 제외",
+                    text = "항목을 누르면 이용내역을 볼 수 있어요",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -426,7 +452,17 @@ private fun MonthlyCategoryChart(transactions: List<TransactionEntity>) {
                             "0%"
                         }
 
-                        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable(
+                                    role = Role.Button,
+                                    onClickLabel = "${summary.categoryName} 지출 내역 보기",
+                                    onClick = { onCategorySelected(summary.categoryName) },
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(7.dp),
+                        ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -498,7 +534,10 @@ private fun MonthlyCategoryChart(transactions: List<TransactionEntity>) {
 }
 
 @Composable
-private fun MonthlyMajorCategoryChart(transactions: List<TransactionEntity>) {
+private fun MonthlyMajorCategoryChart(
+    transactions: List<TransactionEntity>,
+    onCategorySelected: (MajorCategory) -> Unit,
+) {
     val summaries = remember(transactions) {
         ExpenseAggregation.byMajorCategory(transactions)
     }
@@ -526,7 +565,7 @@ private fun MonthlyMajorCategoryChart(transactions: List<TransactionEntity>) {
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "생활비 · 고정비 · 진영 용돈",
+                    text = "항목을 누르면 이용내역을 볼 수 있어요",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -578,7 +617,17 @@ private fun MonthlyMajorCategoryChart(transactions: List<TransactionEntity>) {
                         "0%"
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = "${summary.majorCategory.displayName} 지출 내역 보기",
+                                onClick = { onCategorySelected(summary.majorCategory) },
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,

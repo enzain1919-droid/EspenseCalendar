@@ -45,6 +45,26 @@ class MessageReviewCandidateSelectorTest {
         assertTrue(result.isEmpty())
     }
 
+    @Test
+    fun `advertisements with unknown cards never appear in review for sms or mms`() {
+        val advertisement = record(5, "[새카드] 승인 25,000원 일시불\n(광고) 이벤트 안내")
+        val genuinePayment = record(6, "[새카드] 승인 12,300원 일시불 테스트가맹점")
+
+        val result = MessageReviewCandidateSelector.select(
+            candidates = listOf(
+                advertisement,
+                advertisement.copy(id = 7, transport = MessageTransport.MMS),
+                genuinePayment,
+            ),
+            detectionPatterns = patterns,
+            deletedFingerprints = emptySet(),
+            existingFingerprints = emptySet(),
+            parser = parser,
+        )
+
+        assertEquals(listOf(genuinePayment), result.map { it.record })
+    }
+
     private fun record(id: Long, body: String) = SmsRecord(
         id = id,
         sender = "15880000",

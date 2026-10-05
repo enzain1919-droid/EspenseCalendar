@@ -236,6 +236,13 @@ class PaymentMessageParserTest {
         )
     }
 
+    @Test
+    fun `advertisement is not parsed as a payment even with a recognized card and amount`() {
+        val body = "(광고)[롯데카드] 통큰데이 25,000원 결제 시 할인 일시불"
+        assertNull(parser.parse(record(body)))
+        assertNull(parser.parse(record(body).copy(transport = MessageTransport.MMS)))
+    }
+
     private fun parse(body: String): ParsedPayment {
         val result = parser.parse(record(body))
         assertNotNull(result)

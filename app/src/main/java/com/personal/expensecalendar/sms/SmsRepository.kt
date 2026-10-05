@@ -7,6 +7,7 @@ import android.provider.BaseColumns
 import android.provider.Telephony
 import com.personal.expensecalendar.storage.TransactionDao
 import com.personal.expensecalendar.storage.TransactionEntity
+import com.personal.expensecalendar.storage.AdvertisementSourceEntity
 import com.personal.expensecalendar.storage.CardProfileDao
 import com.personal.expensecalendar.storage.CategoryDao
 import com.personal.expensecalendar.storage.MajorCategory
@@ -32,6 +33,7 @@ data class SmsInboxScan(
     val smsScannedCount: Int,
     val mmsScannedCount: Int,
     val candidates: List<SmsRecord>,
+    val advertisementFingerprints: List<String>,
 )
 
 data class PaymentPreview(
@@ -78,6 +80,7 @@ internal object MessageReviewCandidateSelector {
         existingFingerprints: Set<String>,
         parser: PaymentMessageParser = PaymentMessageParser(),
     ): List<UnparsedPaymentMessage> = candidates.mapNotNull { record ->
+        if (PaymentCandidateMatcher.isAdvertisement(record.body)) return@mapNotNull null
         val fingerprint = MessageFingerprint.create(record)
         if (fingerprint in deletedFingerprints || fingerprint in existingFingerprints) {
             return@mapNotNull null
@@ -106,6 +109,9 @@ class SmsRepository(
             smsScannedCount = smsRecords.size,
             mmsScannedCount = mmsRecords.size,
             candidates = allRecords.filter { PaymentCandidateMatcher.isCandidate(it.body) },
+            advertisementFingerprints = allRecords
+                .filter { PaymentCandidateMatcher.isAdvertisement(it.body) }
+                .map(MessageFingerprint::create),
         )
     }
 
@@ -254,6 +260,7 @@ class SmsImportRepository(
 ) {
     suspend fun importCurrentMonth(range: MonthRange): SmsImportResult {
         val scan = smsRepository.scanInbox(range)
+        rememberAdvertisements(scan)
         val detectionPatterns = activeDetectionPatterns()
         val analyzedCandidates = scan.candidates.map { record ->
             AnalyzedCandidate(
@@ -326,6 +333,7 @@ class SmsImportRepository(
 
     suspend fun findUnparsedMessages(range: MonthRange): MessageReviewScanResult {
         val scan = smsRepository.scanInbox(range)
+        rememberAdvertisements(scan)
         val detectionPatterns = activeDetectionPatterns()
         val deletedFingerprints = transactionDao.findDeletedSourceFingerprints().toHashSet()
         val existingFingerprints = transactionDao.findAllSourceFingerprints().toHashSet()
@@ -341,6 +349,13 @@ class SmsImportRepository(
             scannedCount = scan.scannedCount,
             candidateCount = scan.candidates.size,
             messages = messages,
+        )
+    }
+
+    private suspend fun rememberAdvertisements(scan: SmsInboxScan) {
+        if (scan.advertisementFingerprints.isEmpty()) return
+        transactionDao.rememberAdvertisementSources(
+            scan.advertisementFingerprints.map(::AdvertisementSourceEntity),
         )
     }
 
